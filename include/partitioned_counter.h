@@ -33,7 +33,7 @@ extern "C" {
 
   void pc_destructor(pc_t *pc);
 
-  void pc_add(pc_t *pc, int64_t count, uint8_t thread_id);
+  void ice_pc_add(pc_t *pc, int64_t count, uint8_t thread_id);
 
   void pc_sync(pc_t *pc);
 

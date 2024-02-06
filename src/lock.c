@@ -11,6 +11,9 @@
  * If spin flag is set, then spin until the lock is available.
  */
 bool lock(volatile int *var, uint8_t flag) {
+  #ifdef IS_SINGLE_THREAD
+    return true;
+  #else
   if (GET_WAIT_FOR_LOCK(flag) != WAIT_FOR_LOCK) {
     return !__sync_lock_test_and_set(var, 1);
   } else {
@@ -20,17 +23,26 @@ bool lock(volatile int *var, uint8_t flag) {
   }
 
   return false;
+  #endif
 }
 
 void unlock(volatile int *var) {
+  #ifdef IS_SINGLE_THREAD
+    return ;
+  #else
   __sync_lock_release(var);
   return;
+  #endif
 }
 
 void rw_lock_init(ReaderWriterLock *rwlock) {
+  #ifdef IS_SINGLE_THREAD
+  return;
+  #else
   rwlock->readers = 0;
   rwlock->writer = 0;
   pc_init(&rwlock->pc_counter, &rwlock->readers, NUM_COUNTERS, NUM_COUNTERS);
+  #endif
 }
 
 
@@ -63,6 +75,9 @@ void read_unlock(ReaderWriterLock *rwlock, uint8_t thread_id) {
  * Try to acquire a lock and spin until the lock is available.
  */
 bool read_lock(ReaderWriterLock *rwlock, uint8_t flag, uint8_t thread_id) {
+  #ifdef IS_SINGLE_THREAD
+    return true;
+  #else
   __atomic_add_fetch(&rwlock->pc_counter.local_counters[thread_id].counter, 1, __ATOMIC_SEQ_CST);
 
   if (GET_WAIT_FOR_LOCK(flag) != WAIT_FOR_LOCK) {
@@ -81,11 +96,16 @@ bool read_lock(ReaderWriterLock *rwlock, uint8_t flag, uint8_t thread_id) {
   }
 
   return true;
+  #endif
 }
 
 void read_unlock(ReaderWriterLock *rwlock, uint8_t thread_id) {
+  #ifdef IS_SINGLE_THREAD
+    return;
+  #else
   __atomic_add_fetch(&rwlock->pc_counter.local_counters[thread_id].counter, -1, __ATOMIC_SEQ_CST);
   return;
+  #endif
 }
 #endif
 
@@ -94,6 +114,9 @@ void read_unlock(ReaderWriterLock *rwlock, uint8_t thread_id) {
  * Then wait till reader count is 0.
  */
 bool write_lock(ReaderWriterLock *rwlock, uint8_t flag) {
+  #ifdef IS_SINGLE_THREAD
+    return true;
+  #else
   // acquire write lock.
   if (GET_WAIT_FOR_LOCK(flag) != WAIT_FOR_LOCK) {
     if (__sync_lock_test_and_set(&rwlock->writer, 1))
@@ -109,11 +132,16 @@ bool write_lock(ReaderWriterLock *rwlock, uint8_t flag) {
       ;
 
   return true;
+  #endif
 }
 
 void write_unlock(ReaderWriterLock *rwlock) {
+  #ifdef IS_SINGLE_THREAD
+    return;
+  #else
   __sync_lock_release(&rwlock->writer);
   return;
+  #endif
 }
 
 

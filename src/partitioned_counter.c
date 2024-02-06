@@ -16,6 +16,10 @@
 #define min(a,b) ((a) < (b) ? (a) : (b))
 
 int pc_init(pc_t *pc, int64_t *global_counter, uint32_t num_counters, int32_t threshold) {
+  #ifdef IS_SINGLE_THREAD
+    pc->global_counter = global_counter;
+    return 0;
+  #else
   uint32_t num_cpus = (uint32_t)sysconf( _SC_NPROCESSORS_ONLN );
 
   if (num_cpus < 0) {
@@ -34,16 +38,26 @@ int pc_init(pc_t *pc, int64_t *global_counter, uint32_t num_counters, int32_t th
   pc->threshold = threshold;
 
   return 0;
+  #endif
 }
 
 void pc_destructor(pc_t *pc) {
+  #ifdef IS_SINGLE_THREAD
+  lctr_t *lc = pc->local_counters;
+  pc->local_counters = NULL;
+  free(lc);
+  #else
   pc_sync(pc);
   lctr_t *lc = pc->local_counters;
   pc->local_counters = NULL;
   free(lc);
+  #endif
 }
 
-void pc_add(pc_t *pc, int64_t count, uint8_t counter_id) {
+void ice_pc_add(pc_t *pc, int64_t count, uint8_t counter_id) {
+  #ifdef IS_SINGLE_THREAD
+    pc->global_counter += count;
+  #else
   //uint32_t counter_id = thread_id;
   int64_t cur_count = __atomic_add_fetch(&pc->local_counters[counter_id].counter, count, __ATOMIC_SEQ_CST);
 
@@ -51,12 +65,17 @@ void pc_add(pc_t *pc, int64_t count, uint8_t counter_id) {
     int64_t new_count = __atomic_exchange_n(&pc->local_counters[counter_id].counter, 0, __ATOMIC_SEQ_CST);
     __atomic_fetch_add(pc->global_counter, new_count, __ATOMIC_SEQ_CST);
   }
+  #endif
 }
 
 void pc_sync(pc_t *pc) {
+  #ifdef IS_SINGLE_THREAD
+    return;
+  #else
   for (uint32_t i = 0; i < pc->num_counters; i++) {
     int64_t c = __atomic_exchange_n(&pc->local_counters[i].counter, 0, __ATOMIC_SEQ_CST);
     __atomic_fetch_add(pc->global_counter, c, __ATOMIC_SEQ_CST);
   }
+  #endif
 }
 
